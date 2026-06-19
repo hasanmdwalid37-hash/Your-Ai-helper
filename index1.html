@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A2.0 - স্মার্ট রুটিন মেকার</title>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 24px;
+        }
+
+        .advice-box {
+            background: #e8f4fd;
+            padding: 15px;
+            border-left: 5px solid #3498db;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #34495e;
+            border-radius: 4px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .voice-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input, select, button {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input[type="text"] {
+            flex: 1;
+        }
+
+        .voice-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 50px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+        }
+
+        .voice-btn.listening {
+            background-color: #e74c3c;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .submit-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9f9f9;
+            margin-bottom: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #bdc3c7;
+        }
+
+        .priority-high {
+            border-left: 4px solid #e74c3c;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🤖 A2.0 স্মার্ট রুটিন</h1>
+        
+        <div id="aiAdviceBox" class="advice-box">
+            💡 এআই পরামর্শ: আপনার তালিকায় কোনো কাজ নেই। কাজ যোগ করুন।
+        </div>
+
+        <div class="input-group">
+            <div class="voice-container">
+                <input type="text" id="taskName" placeholder="কাজের নাম লিখুন বা বাটনে চাপুন...">
+                <button type="button" class="voice-btn" id="voiceBtn" onclick="toggleVoiceInput()">🎙️</button>
+            </div>
+            <input type="time" id="taskTime">
+            <select id="taskPriority">
+                <option value="সাধারণ">সাধারণ</option>
+                <option value="জরুরি">জরুরি</option>
+            </select>
+            <button class="submit-btn" onclick="addTask()">যোগ করুন</button>
+        </div>
+
+        <ul id="routineList">
+            </ul>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('myRoutine')) || [];
+        let recognition;
+        let isListening = false;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            updateList();
+            initSpeechRecognition();
+        });
+
+        function initSpeechRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!window.SpeechRecognition) {
+                return;
+            }
+            recognition = new SpeechRecognition();
+            recognition.lang = 'bn-BD';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                isListening = true;
+                const btn = document.getElementById('voiceBtn');
+                btn.classList.add('listening');
+                btn.innerHTML = "🛑";
+                document.getElementById('taskName').placeholder = "🤖 A2.0 শুনছে... বলুন...";
+            };
+
+            recognition.onresult = function(event) {
+                const speechToText = event.results[0][0].transcript;
+                document.getElementById('taskName').value = speechToText;
+                speakResponse("কাজের নাম যুক্ত করা হয়েছে।");
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                const btn = document.getElementById('voiceBtn');
+                btn.classList.remove('listening');
+                btn.innerHTML = "🎙️";
+                document.getElementById('taskName').placeholder = "কাজের নাম লিখুন বা বাটনে চাপুন...";
+            };
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert("ভয়েস ইনপুট এই মুহূর্তে প্রস্তুত নয়। অ্যাপ হিসেবে ইনস্টল করুন।");
+                return;
+            }
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        function speakResponse(text) {
+            const reply = new SpeechSynthesisUtterance(text);
+            reply.lang = 'bn-BD';
+            window.speechSynthesis.speak(reply);
+        }
+
+        function addTask() {
+            const name = document.getElementById('taskName').value;
+            const time = document.getElementById('taskTime').value;
+            const priority = document.getElementById('taskPriority').value;
+
+            if (name && time) {
+                tasks.push({ name, time, priority });
+                saveAndRefresh();
+                document.getElementById('taskName').value = '';
+            } else {
+                alert("দয়া করে কাজের নাম এবং সময় দিন।");
+            }
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem('myRoutine', JSON.stringify(tasks));
+            updateList();
+        }
+
+        function updateList() {
+            const list = document.getElementById('routineList');
+            if(!list) return;
+            list.innerHTML = "";
+            
+            tasks.sort((a, b) => a.time.localeCompare(b.time));
+
+            tasks.forEach((item, index) => {
+                const priorityClass = item.priority === "জরুরি" ? "priority-high" : "";
+                const badge = item.priority === "জরুরি" ? "<span style='color:red;'>[⚠️ জরুরি]</span>" : "";
+                
+                list.innerHTML += `
+                    <li class="task-item ${priorityClass}">
+                        <span>🕒 ${item.time} - ${item.name} ${badge}</span>
+                        <button class="delete-btn" onclick="deleteTask(${index})">মুছুন</button>
+                    </li>`;
+            });
+            generateAIAdvice();
+        }
+
+        function deleteTask(index) {
+            if(confirm("এই কাজটি মুছে ফেলতে চান?")) {
+                tasks.splice(index, 1);
+                saveAndRefresh();
+            }
+        }
+
+        function generateAIAdvice() {
+            const adviceBox = document.getElementById('aiAdviceBox');
+            if(!adviceBox) return;
+            if(tasks.length === 0) {
+                adviceBox.innerHTML = "💡 এআই পরামর্শ: আপনার তালিকায় কোনো কাজ নেই। কাজ যোগ করুন।";
+                return;
+            }
+            
+            let urgentCount = tasks.filter(t => t.priority === "জরুরি").length;
+            adviceBox.innerHTML = urgentCount > 3 ? 
+                "💡 এআই পরামর্শ: ওয়ালিদ, জরুরি কাজ বেশি হয়ে গেছে। কিছু কাজ কমানোর চেষ্টা করুন।" : 
+                "💡 এআই পরামর্শ: আপনার রুটিন খুব গোছানো হয়েছে! সময়মতো সম্পন্ন করার চেষ্টা করুন।";
+        }
+
+        // রিমাইন্ডার ব্যাকগ্রাউন্ড টাইমার
+        setInterval(() => {
+            let now = new Date();
+            let time24 = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+
+            tasks.forEach(item => {
+                if (item.time === time24) {
+                    let speechText = `ওয়ালিদ, এখন ${item.time}। আপনার ${item.name} এর সময় হয়েছে।`;
+                    if(item.priority === "জরুরি") speechText += " এটি একটি জরুরি কাজ।";
+                    speakResponse(speechText);
+                }
+            });
+        }, 60000);
+    </script>
+</body>
+</html>
